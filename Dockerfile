@@ -1,44 +1,23 @@
-FROM ubuntu:14.04
-MAINTAINER Kam Low <hello@sourcey.com>
+FROM dltc/libsourcey-base:latest
 
-# Install the PPA for GCC 6 which is required for C++14
-RUN apt-get update && \
-  apt-get install -y software-properties-common && \
-	add-apt-repository -y ppa:ubuntu-toolchain-r/test
+WORKDIR /app
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-  build-essential \
-  pkg-config \
-  git \
-  curl \
-  cmake \
-  libx11-dev \
-  libglu1-mesa-dev \
-  gcc-6 \
-  g++-6
+RUN apt-get install -yq libboost-all-dev g++-8
 
-# Use GCC 6
-RUN sudo update-alternatives \
-  --install /usr/bin/gcc gcc /usr/bin/gcc-6 60 \
-  --slave /usr/bin/g++ g++ /usr/bin/g++-6
+RUN rm /usr/bin/gcc
+RUN rm /usr/bin/g++
+RUN ln -s /usr/bin/gcc-8 /usr/bin/gcc
+RUN ln -s /usr/bin/g++-8 /usr/bin/g++
 
-# Download and extract precompiled WebRTC static libraries
-# COPY vendor/webrtc-22215-ab42706-linux-x64 /vendor/webrtc-22215-ab42706-linux-x64
-RUN mkdir -p /vendor/webrtc-22215-ab42706-linux-x64; \
-  curl -sSL https://github.com/sourcey/webrtc-precompiled-builds/raw/master/webrtc-22215-ab42706-linux-x64.tar.gz | sudo tar -xzC /vendor/webrtc-22215-ab42706-linux-x64
+RUN cp -r /vendor/webrtc-28114-9863f3d-linux-x64 /app
 
-# Install LibSourcey
-RUN git clone https://github.com/sourcey/libsourcey.git && \
-  cd /libsourcey && mkdir build && cd build && \
-  cmake .. -DCMAKE_BUILD_TYPE=DEBUG -DBUILD_SHARED_LIBS=OFF -DBUILD_WITH_STATIC_CRT=ON \
-           -DBUILD_MODULES=ON -DBUILD_APPLICATIONS=OFF -DBUILD_SAMPLES=OFF -DBUILD_TESTS=OFF \
-           -DWITH_FFMPEG=OFF -DWITH_WEBRTC=ON -DENABLE_LOGGING=OFF \
-           -DWEBRTC_ROOT_DIR=/vendor/webrtc-22215-ab42706-linux-x64 \
-           -DCMAKE_INSTALL_PREFIX=/libsourcey/install && \
-  make VERBOSE=1 && \
-  make install
-  # cachebust
+ADD . /app
 
-# Set the working directory to the LibSourcey install directory
-WORKDIR /libsourcey/install
+RUN cp /vendor/libuv/out/cmake/libuv_a.a /app/libuv.a
+RUN cp /vendor/webrtc-28114-9863f3d-linux-x64/lib/x64/Debug/libwebrtc_full.a /app/libwebrtc.a
+
+RUN cmake . && make -j 12
+
+RUN chmod +x start.sh
+
+CMD ["./start.sh"]
